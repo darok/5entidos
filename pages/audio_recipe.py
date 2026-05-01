@@ -19,19 +19,44 @@ def render():
         st.query_params["page"] = "home"
         st.rerun()
 
-    st.info("Grabá o cargá un audio contando la receta y la app la transcribe y carga automáticamente.")
+    st.write("Contá la receta en voz y la app la transcribe y carga automáticamente.")
 
-    uploaded = st.file_uploader(
-        "Audio",
-        type=["mp3", "wav", "m4a", "ogg", "webm"],
-        label_visibility="collapsed",
-    )
+    tab_grabar, tab_subir = st.tabs(["🎙️ Grabar", "📁 Subir archivo"])
 
-    if uploaded:
+    audio_bytes = None
+
+    with tab_grabar:
+        from audio_recorder_streamlit import audio_recorder
+        st.caption("Presioná el ícono para grabar, otra vez para detener.")
+        recorded = audio_recorder(text="", icon_size="2x", neutral_color="#20264F", recording_color="#e63946")
+        if recorded and recorded != st.session_state.get("_last_recorded"):
+            st.session_state._last_recorded = recorded
+            audio_bytes = recorded
+            st.session_state.audio_raw = ("recording.wav", recorded)
+            st.session_state.pop("audio_transcript", None)
+            st.session_state.pop("audio_extracted", None)
+
+    with tab_subir:
+        uploaded = st.file_uploader(
+            "Audio",
+            type=["mp3", "wav", "m4a", "ogg", "webm"],
+            label_visibility="collapsed",
+        )
+        if uploaded:
+            raw = uploaded.read()
+            if raw != st.session_state.get("_last_uploaded"):
+                st.session_state._last_uploaded = raw
+                st.session_state.audio_raw = (uploaded.name, raw)
+                st.session_state.pop("audio_transcript", None)
+                st.session_state.pop("audio_extracted", None)
+
+    if "audio_raw" in st.session_state:
+        fname, raw = st.session_state.audio_raw
+        st.audio(raw)
         if st.button("Transcribir", type="primary"):
             with st.spinner("Transcribiendo..."):
                 try:
-                    transcript = _transcribe(uploaded)
+                    transcript = _transcribe_bytes(raw, fname)
                     st.session_state.audio_transcript = transcript
                     st.session_state.pop("audio_extracted", None)
                 except Exception as e:
@@ -70,7 +95,7 @@ def render():
 
 # ── Whisper ────────────────────────────────────────────────────
 
-def _transcribe(uploaded_file) -> str:
+def _transcribe_bytes(raw: bytes, filename: str) -> str:
     from openai import OpenAI
 
     key = os.getenv("OPENAI_API_KEY")
@@ -81,8 +106,8 @@ def _transcribe(uploaded_file) -> str:
             pass
 
     client = OpenAI(api_key=key)
-    audio = io.BytesIO(uploaded_file.read())
-    audio.name = uploaded_file.name
+    audio = io.BytesIO(raw)
+    audio.name = filename
 
     result = client.audio.transcriptions.create(
         model="whisper-1",

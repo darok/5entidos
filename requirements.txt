@@ -4,3 +4,4 @@ python-dotenv
 truststore
 streamlit-searchbox
 openai
+audio-recorder-streamlit
