@@ -7,10 +7,13 @@ def get_title() -> str:
     return "Mis recetas"
 
 def render():
-    _, col_nueva, col_config = st.columns([5, 1, 1])
+    _, col_nueva, col_audio, col_config = st.columns([4, 1, 1, 1])
     if col_nueva.button("＋ Nueva", type="primary", use_container_width=True):
         st.session_state._f_loaded = None
         st.query_params["page"] = "create"
+        st.rerun()
+    if col_audio.button("🎙️ Audio", use_container_width=True):
+        st.query_params["page"] = "audio"
         st.rerun()
     if col_config.button("⚙️ Config", use_container_width=True):
         st.query_params["page"] = "settings"

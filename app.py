@@ -109,6 +109,8 @@ elif page == "edit":
     from pages.create_edit_recipe import render, get_title
 elif page == "settings":
     from pages.settings import render, get_title
+elif page == "audio":
+    from pages.audio_recipe import render, get_title
 else:
     from pages.home import render, get_title
 
