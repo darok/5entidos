@@ -92,19 +92,19 @@ def _transcribe(uploaded_file) -> str:
     return result.text
 
 
-# ── Claude ─────────────────────────────────────────────────────
+# ── GPT-4o-mini ────────────────────────────────────────────────
 
 def _extract_recipe(transcript: str) -> dict:
-    import anthropic
+    from openai import OpenAI
 
-    key = os.getenv("ANTHROPIC_API_KEY")
+    key = os.getenv("OPENAI_API_KEY")
     if not key:
         try:
-            key = st.secrets.get("ANTHROPIC_API_KEY")
+            key = st.secrets.get("OPENAI_API_KEY")
         except Exception:
             pass
 
-    client = anthropic.Anthropic(api_key=key)
+    client = OpenAI(api_key=key)
 
     prompt = f"""El usuario dictó una receta de cocina. Transcripción:
 
@@ -129,18 +129,14 @@ Reglas:
 - quantity siempre debe ser un número (0 si no se menciona).
 - steps debe ser una lista de strings, uno por paso."""
 
-    msg = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
         max_tokens=1024,
+        response_format={"type": "json_object"},
         messages=[{"role": "user", "content": prompt}],
     )
 
-    text = msg.content[0].text.strip()
-    if text.startswith("```"):
-        text = text[text.index("{") :]
-        text = text[: text.rindex("}") + 1]
-
-    return json.loads(text)
+    return json.loads(response.choices[0].message.content)
 
 
 # ── Preview ────────────────────────────────────────────────────

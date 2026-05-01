@@ -4,4 +4,3 @@ python-dotenv
 truststore
 streamlit-searchbox
 openai
-anthropic
