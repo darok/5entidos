@@ -21,9 +21,8 @@ def render():
 
     st.write("Contá la receta en voz y la app la transcribe y carga automáticamente.")
 
+    # ── Paso 1: capturar audio ─────────────────────────────────
     tab_grabar, tab_subir = st.tabs(["🎙️ Grabar", "📁 Subir archivo"])
-
-    audio_bytes = None
 
     with tab_grabar:
         from audio_recorder_streamlit import audio_recorder
@@ -33,15 +32,15 @@ def render():
             icon_size="2x",
             neutral_color="#20264F",
             recording_color="#e63946",
-            pause_threshold=300,   # no para por silencio, solo al tocar el botón
-            energy_threshold=0.01, # umbral mínimo para no cortar entre palabras
+            pause_threshold=300,
+            energy_threshold=0.01,
         )
         if recorded and recorded != st.session_state.get("_last_recorded"):
             st.session_state._last_recorded = recorded
-            audio_bytes = recorded
             st.session_state.audio_raw = ("recording.wav", recorded)
             st.session_state.pop("audio_transcript", None)
             st.session_state.pop("audio_extracted", None)
+            st.session_state.pop("_do_transcribe", None)
 
     with tab_subir:
         uploaded = st.file_uploader(
@@ -56,21 +55,37 @@ def render():
                 st.session_state.audio_raw = (uploaded.name, raw)
                 st.session_state.pop("audio_transcript", None)
                 st.session_state.pop("audio_extracted", None)
+                st.session_state.pop("_do_transcribe", None)
 
+    # ── Paso 2: transcribir ────────────────────────────────────
     if "audio_raw" in st.session_state:
         fname, raw = st.session_state.audio_raw
         st.audio(raw)
-        if st.button("Transcribir", type="primary"):
-            with st.spinner("Transcribiendo..."):
-                try:
-                    transcript = _transcribe_bytes(raw, fname)
-                    st.session_state.audio_transcript = transcript
-                    st.session_state.pop("audio_extracted", None)
-                except Exception as e:
-                    st.error(f"Error al transcribir: {e}")
-                    return
+
+        col_trans, col_discard = st.columns([3, 1])
+        if col_trans.button("Transcribir", type="primary", use_container_width=True):
+            st.session_state._do_transcribe = True
+        if col_discard.button("Descartar", use_container_width=True):
+            for k in ("audio_raw", "_last_recorded", "audio_transcript", "audio_extracted", "_do_transcribe"):
+                st.session_state.pop(k, None)
             st.rerun()
 
+    # El flag evita que el rerun del componente pise el click del botón
+    if st.session_state.pop("_do_transcribe", False) and "audio_raw" in st.session_state:
+        fname, raw = st.session_state.audio_raw
+        with st.status("Cargando tu audio...", expanded=False) as status:
+            try:
+                transcript = _transcribe_bytes(raw, fname)
+                st.session_state.audio_transcript = transcript
+                st.session_state.pop("audio_extracted", None)
+                status.update(label="Audio cargado ✓", state="complete")
+            except Exception as e:
+                status.update(label="Error al transcribir", state="error")
+                st.error(str(e))
+                st.stop()
+        st.rerun()
+
+    # ── Paso 3: extraer receta ─────────────────────────────────
     if "audio_transcript" in st.session_state:
         transcript = st.text_area(
             "Transcripción (podés editarla antes de extraer)",
@@ -78,23 +93,30 @@ def render():
             height=180,
             key="audio_transcript_edit",
         )
-
         if st.button("Extraer receta", type="primary"):
-            with st.spinner("Extrayendo receta con IA..."):
-                try:
-                    extracted = _extract_recipe(transcript)
-                    st.session_state.audio_extracted = extracted
-                except Exception as e:
-                    st.error(f"Error al extraer: {e}")
-                    return
-            st.rerun()
+            st.session_state._do_extract = True
+            st.session_state._transcript_to_extract = transcript
 
+    if st.session_state.pop("_do_extract", False):
+        transcript = st.session_state.pop("_transcript_to_extract", "")
+        with st.status("Analizando la receta...", expanded=False) as status:
+            try:
+                extracted = _extract_recipe(transcript)
+                st.session_state.audio_extracted = extracted
+                status.update(label="Receta extraída ✓", state="complete")
+            except Exception as e:
+                status.update(label="Error al extraer", state="error")
+                st.error(str(e))
+                st.stop()
+        st.rerun()
+
+    # ── Paso 4: preview y carga ────────────────────────────────
     if "audio_extracted" in st.session_state:
         st.divider()
         _show_preview(st.session_state.audio_extracted)
         st.divider()
         if st.button("Cargar al formulario →", type="primary"):
-            with st.spinner("Cargando..."):
+            with st.spinner("Preparando formulario..."):
                 _prefill_form(st.session_state.audio_extracted)
             st.query_params["page"] = "create"
             st.rerun()
