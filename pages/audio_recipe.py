@@ -27,8 +27,15 @@ def render():
 
     with tab_grabar:
         from audio_recorder_streamlit import audio_recorder
-        st.caption("Presioná el ícono para grabar, otra vez para detener.")
-        recorded = audio_recorder(text="", icon_size="2x", neutral_color="#20264F", recording_color="#e63946")
+        st.caption("Presioná el ícono para grabar. Presioná de nuevo para detener.")
+        recorded = audio_recorder(
+            text="",
+            icon_size="2x",
+            neutral_color="#20264F",
+            recording_color="#e63946",
+            pause_threshold=300,   # no para por silencio, solo al tocar el botón
+            energy_threshold=0.01, # umbral mínimo para no cortar entre palabras
+        )
         if recorded and recorded != st.session_state.get("_last_recorded"):
             st.session_state._last_recorded = recorded
             audio_bytes = recorded
