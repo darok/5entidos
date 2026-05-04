@@ -2,6 +2,6 @@ streamlit
 supabase==2.15.2
 python-dotenv
 truststore
-streamlit-searchbox
+streamlit-searchbox==0.1.24
 openai
 audio-recorder-streamlit
